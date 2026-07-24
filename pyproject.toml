@@ -1,0 +1,56 @@
+# agent-runtime — workspace root.
+#
+# This is a *virtual* uv workspace root: it has no [project] table of its own and
+# ships no importable code. It exists to (1) enumerate the member packages, and
+# (2) hold the single source of truth for tooling config (ruff, mypy, pytest) so
+# every package is linted and type-checked under identical rules.
+#
+# Member packages are added in a later increment; keeping `members` empty for now
+# means `uv sync` succeeds against the bare skeleton.
+
+[tool.uv.workspace]
+members = []
+
+[dependency-groups]
+# Repo-wide development toolchain. Runtime dependencies live in each member's own
+# pyproject.toml; only tools that operate across the whole tree belong here.
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "hypothesis>=6",
+    "testcontainers>=4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["runtime/src", "api/src", "agents/src", "tools/src", "sdk/src", "bench/src"]
+
+[tool.ruff.lint]
+# Deliberately broad. E/F = pyflakes+pycodestyle, I = isort, UP = pyupgrade,
+# B = bugbear, ASYNC = async pitfalls, RUF = ruff-native lints, S = bandit-style
+# security, PL = pylint subset. Additions are cheap; loosening later is a review.
+select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF", "S", "PL"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may use assert (S101) and hardcoded credentials in fixtures (S105/S106).
+"tests/**" = ["S101", "S105", "S106", "PLR2004"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+# Any `# type: ignore` must name its error code, per the project style bar.
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+markers = [
+    "integration: requires real Postgres/Redis via testcontainers (deselect with -m 'not integration')",
+]
