@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import NewType
 from uuid import UUID
 
@@ -75,6 +75,15 @@ def uuid7_timestamp(u: UUID) -> datetime:
         return _UNIX_EPOCH + timedelta(milliseconds=ms)
     except OverflowError as exc:
         raise ValueError(f"UUIDv7 timestamp out of representable range: {ms} ms") from exc
+
+
+def partition_month(u: UUID) -> date:
+    """First day of the UTC month embedded in a UUIDv7 — the storage partition key.
+
+    A pure function of the id, identical for every event of a run, so all of a
+    run's rows land in one monthly partition.
+    """
+    return uuid7_timestamp(u).date().replace(day=1)
 
 
 RunId = NewType("RunId", UUID)

@@ -6,7 +6,7 @@ conditions a retry of the identical operation can fix.
 
 from __future__ import annotations
 
-from agent_runtime.errors import TerminalError
+from agent_runtime.errors import RetryableError, TerminalError
 
 
 class InvalidTransitionError(TerminalError):
@@ -29,3 +29,15 @@ class StaleLeaseError(TerminalError):
 
 class RunNotFoundError(TerminalError):
     """No run exists for the given id under the current tenant context."""
+
+
+class RunAlreadyExistsError(TerminalError):
+    """A run with this id already exists; ``create_run`` was called twice."""
+
+
+class LeaseHeldError(RetryableError):
+    """The run's lease is held by another live worker.
+
+    Retryable: the lease may become free (released or expired) later, so the
+    caller can back off and try to acquire it again.
+    """

@@ -9,7 +9,8 @@ rejects a second writer racing for the same slot. That rejection surfaces as a
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from datetime import date, datetime
 from uuid import UUID
 
@@ -21,7 +22,7 @@ from agent_runtime.db.rows import record_to_envelope
 from agent_runtime.events.envelope import Envelope, EventPayload
 from agent_runtime.events.errors import ConcurrencyError
 from agent_runtime.events.registry import EventRegistry, default_registry
-from agent_runtime.ids import EventId, RunId, TenantId, new_event_id, uuid7_timestamp
+from agent_runtime.ids import EventId, RunId, TenantId, new_event_id, partition_month
 
 _INSERT = (
     "INSERT INTO events "
@@ -43,7 +44,7 @@ _SELECT = (
 
 def _partition_key(run_id: RunId) -> date:
     """The run's monthly partition key, derived from its UUIDv7 creation time."""
-    return uuid7_timestamp(run_id).date().replace(day=1)
+    return partition_month(run_id)
 
 
 class EventStore:
@@ -59,6 +60,21 @@ class EventStore:
         self._registry = registry
         self._clock: Clock = clock or SystemClock()
 
+    @asynccontextmanager
+    async def _acquire(
+        self, tenant_id: TenantId, conn: asyncpg.Connection[asyncpg.Record] | None
+    ) -> AsyncIterator[asyncpg.Connection[asyncpg.Record]]:
+        """Yield the caller's connection, or open a fresh tenant-scoped one.
+
+        When ``conn`` is passed the caller owns the transaction and must already
+        have bound the tenant context; this store then composes into it.
+        """
+        if conn is not None:
+            yield conn
+        else:
+            async with tenant_connection(self._pool, tenant_id) as owned:
+                yield owned
+
     async def append(
         self,
         tenant_id: TenantId,
@@ -69,6 +85,7 @@ class EventStore:
         occurred_at: datetime | None = None,
         causation_id: EventId | None = None,
         correlation_id: UUID | None = None,
+        conn: asyncpg.Connection[asyncpg.Record] | None = None,
     ) -> Envelope:
         """Append a single event; see :meth:`append_batch` for semantics."""
         events = await self.append_batch(
@@ -79,6 +96,7 @@ class EventStore:
             occurred_at=occurred_at,
             causation_id=causation_id,
             correlation_id=correlation_id,
+            conn=conn,
         )
         return events[0]
 
@@ -92,12 +110,14 @@ class EventStore:
         occurred_at: datetime | None = None,
         causation_id: EventId | None = None,
         correlation_id: UUID | None = None,
+        conn: asyncpg.Connection[asyncpg.Record] | None = None,
     ) -> list[Envelope]:
         """Atomically append events with sequence numbers ``after_seq+1 ...``.
 
         All events land in one transaction, so the batch is all-or-nothing. A
         conflict on any sequence number rolls the whole batch back and raises
-        :class:`ConcurrencyError`.
+        :class:`ConcurrencyError`. Pass ``conn`` to compose into an outer
+        transaction (see :meth:`_acquire`).
 
         :raises ValueError: if ``after_seq`` is negative or ``payloads`` is empty.
         """
@@ -110,13 +130,13 @@ class EventStore:
         when = occurred_at or self._clock.now()
         envelopes: list[Envelope] = []
         try:
-            async with tenant_connection(self._pool, tenant_id) as conn:
+            async with self._acquire(tenant_id, conn) as active:
                 for offset, payload in enumerate(payloads):
                     seq = after_seq + 1 + offset
                     event_type = self._registry.event_type_for(payload)
                     version = self._registry.current_version(event_type)
                     event_id = new_event_id()
-                    row = await conn.fetchrow(
+                    row = await active.fetchrow(
                         _INSERT,
                         partition_key,
                         run_id,
@@ -160,14 +180,16 @@ class EventStore:
         *,
         from_seq: int = 0,
         to_seq: int | None = None,
+        conn: asyncpg.Connection[asyncpg.Record] | None = None,
     ) -> list[Envelope]:
         """Return a run's events in ``seq`` order.
 
         ``from_seq`` is exclusive (events strictly after it) and ``to_seq`` is
         inclusive; the defaults return the whole run. Payloads are upcast to the
-        current schema version on the way out.
+        current schema version on the way out. Pass ``conn`` to read within an
+        outer transaction.
         """
         partition_key = _partition_key(run_id)
-        async with tenant_connection(self._pool, tenant_id) as conn:
-            rows = await conn.fetch(_SELECT, partition_key, run_id, from_seq, to_seq)
+        async with self._acquire(tenant_id, conn) as acquired:
+            rows = await acquired.fetch(_SELECT, partition_key, run_id, from_seq, to_seq)
         return [record_to_envelope(row, self._registry) for row in rows]
