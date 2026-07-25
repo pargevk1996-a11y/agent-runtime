@@ -50,6 +50,16 @@ explicit_package_bases = true
 mypy_path = ["runtime/src", "api/src", "agents/src", "tools/src", "sdk/src", "bench/src"]
 exclude = ['\.venv', '/build/', '/dist/']
 
+# asyncpg ships no py.typed marker; treat it as untyped at its boundary. The
+# typed row-mapping helper (db/rows.py) localizes this so the rest stays typed.
+[[tool.mypy.overrides]]
+module = ["asyncpg", "asyncpg.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
