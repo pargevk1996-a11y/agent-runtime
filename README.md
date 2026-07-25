@@ -9,12 +9,12 @@
 
 <br/>
 
-![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
-![Typing](https://img.shields.io/badge/typing-mypy--strict-2ea44f)
-![Lint](https://img.shields.io/badge/lint-ruff-261230?logo=ruff&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-pytest%20%2B%20hypothesis-0A9EDC?logo=pytest&logoColor=white)
-![Status](https://img.shields.io/badge/status-pre--alpha-orange)
-![Roadmap](https://img.shields.io/badge/roadmap-2%20of%2010%20phases-blueviolet)
+![Python](https://img.shields.io/badge/python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Typing](https://img.shields.io/badge/mypy-strict-2EA44F?style=for-the-badge&logo=python&logoColor=white)
+![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
+![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
+![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-3%20of%2010-7B3FE4?style=for-the-badge)
 
 </div>
 
@@ -187,7 +187,9 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] Frozen envelope, payload registry, in-memory upcasting
   - [x] Partitioned schema, RLS tenant isolation, migration runner
   - [x] `EventStore` append / read with optimistic concurrency + property tests
-- [ ] **3 · Run state machine** + checkpoint manager
+- [ ] **3 · Run state machine** + checkpoint manager — 🚧 *in progress*
+  - [x] Run lifecycle events, state machine, pure event fold
+  - [ ] `runs` projection, lease + fencing token, snapshot side-table
 - [ ] **4 · Scheduler** + DAG executor
 - [ ] **5 · LLM provider interface** + cost accounting
 - [ ] **6 · MCP tool client** + sandboxed code executor
