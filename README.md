@@ -187,10 +187,11 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] Frozen envelope, payload registry, in-memory upcasting
   - [x] Partitioned schema, RLS tenant isolation, migration runner
   - [x] `EventStore` append / read with optimistic concurrency + property tests
-- [ ] **3 · Run state machine** + checkpoint manager — 🚧 *in progress*
+- [x] **3 · Run state machine** + checkpoint manager
   - [x] Run lifecycle events, state machine, pure event fold
-  - [ ] `runs` projection, lease + fencing token, snapshot side-table
-- [ ] **4 · Scheduler** + DAG executor
+  - [x] `runs` projection, lease + fencing token, snapshot side-table
+  - [x] Crash recovery — snapshot + tail replay, verified from a fresh process
+- [ ] **4 · Scheduler** + DAG executor — 🚧 *next*
 - [ ] **5 · LLM provider interface** + cost accounting
 - [ ] **6 · MCP tool client** + sandboxed code executor
 - [ ] **7 · Streaming bus** + FastAPI control plane

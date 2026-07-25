@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     redis_url: RedisDsn
     otel_endpoint: str | None = None
     log_level: str = "INFO"
+    snapshot_interval_events: int = 100
 
     @property
     def is_production(self) -> bool:

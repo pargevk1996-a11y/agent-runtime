@@ -29,6 +29,7 @@ from agent_runtime.runs.errors import (
     StaleLeaseError,
 )
 from agent_runtime.runs.events import RunCreated
+from agent_runtime.runs.snapshots import CheckpointManager
 from agent_runtime.runs.state import RunState, RunStatus, apply, fold
 
 
@@ -67,9 +68,15 @@ _UPDATE_PROJECTION = (
 class RunStore:
     """Coordinates run creation, leasing, and lease-gated event appends."""
 
-    def __init__(self, pool: asyncpg.Pool[asyncpg.Record], event_store: EventStore) -> None:
+    def __init__(
+        self,
+        pool: asyncpg.Pool[asyncpg.Record],
+        event_store: EventStore,
+        checkpoints: CheckpointManager | None = None,
+    ) -> None:
         self._pool = pool
         self._events = event_store
+        self._checkpoints = checkpoints
 
     async def create_run(
         self, tenant_id: TenantId, run_id: RunId, *, input: dict[str, object]
@@ -158,11 +165,25 @@ class RunStore:
         return appended
 
     async def load_state(self, tenant_id: TenantId, run_id: RunId) -> RunState:
-        """Reconstruct a run's state by folding its event log.
+        """Reconstruct a run's state, folding from the latest snapshot if any.
+
+        With a checkpoint manager configured, the latest snapshot is loaded and
+        only the events after it are folded; without one, the whole log is folded.
+        Both paths yield identical state — the snapshot is a pure cache.
 
         :raises RunNotFoundError: if the run has no events.
         """
-        events = await self._events.read(tenant_id, run_id)
-        if not events:
-            raise RunNotFoundError("no such run", context={"run_id": str(run_id)})
-        return fold(events)
+        async with tenant_connection(self._pool, tenant_id) as conn:
+            snapshot = (
+                await self._checkpoints.load_latest(tenant_id, run_id, conn=conn)
+                if self._checkpoints is not None
+                else None
+            )
+            if snapshot is None:
+                events = await self._events.read(tenant_id, run_id, conn=conn)
+                if not events:
+                    raise RunNotFoundError("no such run", context={"run_id": str(run_id)})
+                return fold(events)
+            state, at_seq = snapshot
+            tail = await self._events.read(tenant_id, run_id, from_seq=at_seq, conn=conn)
+            return fold(tail, initial=state)
