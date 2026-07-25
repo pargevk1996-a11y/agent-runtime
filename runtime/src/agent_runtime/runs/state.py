@@ -79,6 +79,7 @@ def apply(state: RunState | None, event: Envelope) -> RunState:
     """
     payload = event.payload
     seq = event.seq
+    run_events = (RunCreated, RunStarted, RunSucceeded, RunFailed, RunCancelled)
 
     if state is None:
         if isinstance(payload, RunCreated):
@@ -91,6 +92,10 @@ def apply(state: RunState | None, event: Envelope) -> RunState:
         raise InvalidTransitionError(
             "first event must be RunCreated", context={"event_type": event.event_type}
         )
+
+    # DAG and other non-lifecycle events share this stream; run fold ignores them.
+    if not isinstance(payload, run_events):
+        return state
 
     if seq <= state.last_seq:
         raise InvalidTransitionError(

@@ -159,8 +159,10 @@ class RunStore:
             state: RunState = RunState(status=RunStatus(row["status"]), last_seq=row["last_seq"])
             for event in appended:
                 state = apply(state, event)
+            # last_seq tracks the actual last sequence (including DAG events, which
+            # run fold ignores); status comes from the run-lifecycle fold.
             await conn.execute(
-                _UPDATE_PROJECTION, partition_key, run_id, state.status.value, state.last_seq
+                _UPDATE_PROJECTION, partition_key, run_id, state.status.value, appended[-1].seq
             )
         return appended
 
