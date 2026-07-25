@@ -1,0 +1,13 @@
+[project]
+name = "agent-runtime-bench"
+version = "0.1.0"
+description = "Reproducible benchmarks: throughput, checkpoint recovery latency, cost-per-task."
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_runtime_bench"]

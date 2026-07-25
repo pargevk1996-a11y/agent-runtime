@@ -5,11 +5,8 @@
 # (2) hold the single source of truth for tooling config (ruff, mypy, pytest) so
 # every package is linted and type-checked under identical rules.
 #
-# Member packages are added in a later increment; keeping `members` empty for now
-# means `uv sync` succeeds against the bare skeleton.
-
 [tool.uv.workspace]
-members = []
+members = ["runtime", "api", "agents", "tools", "sdk", "bench"]
 
 [dependency-groups]
 # Repo-wide development toolchain. Runtime dependencies live in each member's own

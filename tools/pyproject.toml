@@ -1,0 +1,13 @@
+[project]
+name = "agent-runtime-tools"
+version = "0.1.0"
+description = "Reference MCP tool servers (web_fetch, code_exec, sql_query) as separate processes."
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_runtime_tools"]
