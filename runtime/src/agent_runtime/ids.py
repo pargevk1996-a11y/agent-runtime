@@ -17,8 +17,12 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import UTC, datetime, timedelta
 from typing import NewType
 from uuid import UUID
+
+_UNIX_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+_UUID_VERSION_7 = 7
 
 
 def uuid7(ms: int | None = None) -> UUID:
@@ -48,6 +52,29 @@ def uuid7(ms: int | None = None) -> UUID:
     value |= 0b10 << 62  # variant
     value |= rand_b  # rand_b
     return UUID(int=value)
+
+
+def uuid7_timestamp(u: UUID) -> datetime:
+    """Extract the embedded creation time from a UUIDv7 as a UTC ``datetime``.
+
+    Inverse of the timestamp half of :func:`uuid7`: reads the most-significant
+    48 bits as unix milliseconds. Used to derive a run's partition key from its
+    ``run_id`` without a database round trip or a separate ``runs`` table.
+
+    Invariant: exact for any integer-millisecond input, because the result is
+    built with :class:`~datetime.timedelta` (no float epoch arithmetic).
+
+    :raises ValueError: if ``u`` is not a version-7 UUID, or its embedded
+        timestamp falls outside the range ``datetime`` can represent (a 48-bit
+        millisecond field reaches ~year 10889, beyond ``datetime.max``).
+    """
+    if u.version != _UUID_VERSION_7:
+        raise ValueError(f"expected a UUIDv7, got version {u.version}")
+    ms = u.int >> 80  # top 48 bits hold the unix-millisecond timestamp
+    try:
+        return _UNIX_EPOCH + timedelta(milliseconds=ms)
+    except OverflowError as exc:
+        raise ValueError(f"UUIDv7 timestamp out of representable range: {ms} ms") from exc
 
 
 RunId = NewType("RunId", UUID)
