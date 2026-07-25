@@ -43,6 +43,12 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 # Any `# type: ignore` must name its error code, per the project style bar.
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+# src-layout workspace: root each package's `src` so `mypy .` maps files to the
+# right module, and never type-check the virtualenv or build artifacts.
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = ["runtime/src", "api/src", "agents/src", "tools/src", "sdk/src", "bench/src"]
+exclude = ['\.venv', '/build/', '/dist/']
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
