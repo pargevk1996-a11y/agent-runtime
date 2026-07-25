@@ -46,7 +46,7 @@ async def test_rls_isolates_tenants(pg: dict[str, str]) -> None:
 
         async with tenant_connection(pool, tenant_a) as conn:
             await conn.execute(
-                _INSERT, partition_key, run, 1, new_event_id(), tenant_a, "sample", 1, "{}", now
+                _INSERT, partition_key, run, 1, new_event_id(), tenant_a, "sample", 1, {}, now
             )
 
         async with tenant_connection(pool, tenant_b) as conn:
@@ -72,7 +72,7 @@ async def test_rls_with_check_blocks_foreign_tenant_insert(pg: dict[str, str]) -
         with pytest.raises(asyncpg.PostgresError):
             async with tenant_connection(pool, tenant_a) as conn:
                 await conn.execute(
-                    _INSERT, partition_key, run, 1, new_event_id(), tenant_b, "sample", 1, "{}", now
+                    _INSERT, partition_key, run, 1, new_event_id(), tenant_b, "sample", 1, {}, now
                 )
     finally:
         await pool.close()

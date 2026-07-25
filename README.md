@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/lint-ruff-261230?logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-pytest%20%2B%20hypothesis-0A9EDC?logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
-![Roadmap](https://img.shields.io/badge/roadmap-phase%202%3A%20event%20store-blueviolet)
+![Roadmap](https://img.shields.io/badge/roadmap-2%20of%2010%20phases-blueviolet)
 
 </div>
 
@@ -183,10 +183,10 @@ Run `make help` for the full list of targets.
 Built in strict phase order — no phase begins before the previous one lands.
 
 - [x] **1 · Skeleton** — uv workspace, tooling, CI shape
-- [ ] **2 · Event store** — 🚧 *in progress*
+- [x] **2 · Event store** — envelope, registry/upcasting, partitioned schema, RLS
   - [x] Frozen envelope, payload registry, in-memory upcasting
   - [x] Partitioned schema, RLS tenant isolation, migration runner
-  - [ ] `EventStore` append / read with optimistic concurrency + property tests
+  - [x] `EventStore` append / read with optimistic concurrency + property tests
 - [ ] **3 · Run state machine** + checkpoint manager
 - [ ] **4 · Scheduler** + DAG executor
 - [ ] **5 · LLM provider interface** + cost accounting

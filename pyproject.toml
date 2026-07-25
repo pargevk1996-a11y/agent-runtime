@@ -31,6 +31,11 @@ src = ["runtime/src", "api/src", "agents/src", "tools/src", "sdk/src", "bench/sr
 # security, PL = pylint subset. Additions are cheap; loosening later is a review.
 select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF", "S", "PL"]
 
+[tool.ruff.lint.pylint]
+# Store/API methods legitimately take several keyword-only parameters (ids, seq,
+# payload, causation/correlation); 5 is too tight for that shape.
+max-args = 8
+
 [tool.ruff.lint.per-file-ignores]
 # Tests may use assert (S101) and hardcoded credentials in fixtures (S105/S106).
 "tests/**" = ["S101", "S105", "S106", "PLR2004"]

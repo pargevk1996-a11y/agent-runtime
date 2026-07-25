@@ -9,6 +9,7 @@ GUC set the RLS policy denies all rows.
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,11 +18,23 @@ import asyncpg
 from agent_runtime.ids import TenantId
 
 
+async def _init_connection(conn: asyncpg.Connection[asyncpg.Record]) -> None:
+    """Decode JSONB as Python objects rather than raw text.
+
+    asyncpg returns ``jsonb`` as a string by default; registering this codec once
+    per pooled connection means payloads cross the boundary as ``dict`` in both
+    directions, so no caller hand-rolls ``json.loads`` / ``json.dumps``.
+    """
+    await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+
+
 async def create_pool(
     dsn: str, *, min_size: int = 1, max_size: int = 10
 ) -> asyncpg.Pool[asyncpg.Record]:
-    """Create an asyncpg connection pool for ``dsn``."""
-    return await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size)
+    """Create an asyncpg connection pool for ``dsn`` with the JSONB codec installed."""
+    return await asyncpg.create_pool(
+        dsn, min_size=min_size, max_size=max_size, init=_init_connection
+    )
 
 
 @asynccontextmanager
