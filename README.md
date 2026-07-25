@@ -14,6 +14,7 @@
 ![Lint](https://img.shields.io/badge/lint-ruff-261230?logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-pytest%20%2B%20hypothesis-0A9EDC?logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
+![Roadmap](https://img.shields.io/badge/roadmap-phase%202%3A%20event%20store-blueviolet)
 
 </div>
 
@@ -24,6 +25,7 @@
 - [Why this exists](#why-this-exists)
 - [Capabilities](#capabilities)
 - [Architecture at a glance](#architecture-at-a-glance)
+- [The event log](#the-event-log)
 - [Repository layout](#repository-layout)
 - [Getting started](#getting-started)
 - [Roadmap](#roadmap)
@@ -99,6 +101,50 @@ nothing but PostgreSQL and Redis — so they scale and fail independently.
 
 ---
 
+## The event log
+
+The log is the single source of truth. Every event is an immutable **envelope**
+with a frozen shape; only the `payload` varies by type and grows per phase.
+
+| Field | Meaning |
+|---|---|
+| `event_id` · `run_id` · `tenant_id` | UUIDv7 identity, ownership, tenant (RLS boundary) |
+| `seq` | per-run monotonic order — the **only** authority on ordering |
+| `event_type` · `payload_version` | discriminator + schema version for upcasting on read |
+| `payload` | typed body (open union, JSONB at rest, Pydantic is the schema authority) |
+| `occurred_at` · `recorded_at` | when it happened / when it was persisted |
+| `causation_id` · `correlation_id` | audit chain and originating-request grouping |
+
+**Partitioning & retention.** A run's partition key is the *month of its
+`run_id`* (UUIDv7 embeds creation time), so all of a run's events live in one
+monthly partition and `(run_id, seq)` stays unique. Retention is a partition
+`DROP`. **Tenant isolation** is enforced in the database via Row-Level Security,
+not application checks. **Schema evolution** never rewrites rows: old payloads
+are upcast `vN → vN+1` in memory on read.
+
+```mermaid
+sequenceDiagram
+    participant W as Worker
+    participant S as EventStore
+    participant DB as PostgreSQL
+    W->>S: append(run, after_seq = N, payload)
+    S->>DB: INSERT seq = N+1  (UNIQUE run_id, seq)
+    alt sequence already taken
+        DB-->>S: unique violation
+        S-->>W: ConcurrencyError (retryable)
+    else committed
+        DB-->>S: ok
+        S-->>W: Envelope(seq = N+1)
+    end
+    Note over W,DB: 💥 process killed
+    W->>S: read(run) after restart
+    S->>DB: SELECT … ORDER BY seq
+    DB-->>S: rows (JSONB)
+    S-->>W: replay — each payload upcast to current version
+```
+
+---
+
 ## Repository layout
 
 | Package    | Role                                                          |
@@ -137,7 +183,10 @@ Run `make help` for the full list of targets.
 Built in strict phase order — no phase begins before the previous one lands.
 
 - [x] **1 · Skeleton** — uv workspace, tooling, CI shape
-- [ ] **2 · Event store** — schema, append/read/replay, property-based tests
+- [ ] **2 · Event store** — 🚧 *in progress*
+  - [x] Frozen envelope, payload registry, in-memory upcasting
+  - [x] Partitioned schema, RLS tenant isolation, migration runner
+  - [ ] `EventStore` append / read with optimistic concurrency + property tests
 - [ ] **3 · Run state machine** + checkpoint manager
 - [ ] **4 · Scheduler** + DAG executor
 - [ ] **5 · LLM provider interface** + cost accounting
