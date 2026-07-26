@@ -166,6 +166,10 @@ class RunStore:
             )
         return appended
 
+    async def read_events(self, tenant_id: TenantId, run_id: RunId) -> list[Envelope]:
+        """Read a run's full event log (for projecting the DAG, for example)."""
+        return await self._events.read(tenant_id, run_id)
+
     async def load_state(self, tenant_id: TenantId, run_id: RunId) -> RunState:
         """Reconstruct a run's state, folding from the latest snapshot if any.
 

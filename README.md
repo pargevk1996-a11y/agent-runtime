@@ -191,7 +191,10 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] Run lifecycle events, state machine, pure event fold
   - [x] `runs` projection, lease + fencing token, snapshot side-table
   - [x] Crash recovery — snapshot + tail replay, verified from a fresh process
-- [ ] **4 · Scheduler** + DAG executor — 🚧 *next*
+- [ ] **4 · Scheduler** + DAG executor — 🚧 *in progress*
+  - [x] DAG model, events, pure fold with ready-set & cycle checks
+  - [x] Scheduler drive-loop: bounded-parallel, retry, fail-fast, crash recovery
+  - [ ] Dynamic graph expansion, bounded reflection cycles, cancellation
 - [ ] **5 · LLM provider interface** + cost accounting
 - [ ] **6 · MCP tool client** + sandboxed code executor
 - [ ] **7 · Streaming bus** + FastAPI control plane
