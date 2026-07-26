@@ -14,18 +14,22 @@ from typing import Protocol
 
 from agent_runtime.dag.model import EdgeType, NodeBudget, NodeRole, RetryPolicy
 from agent_runtime.dag.state import Node
-from agent_runtime.ids import NodeId
+from agent_runtime.ids import NodeId, RunId, TenantId
 
 
 @dataclass(frozen=True)
 class NodeContext:
-    """Everything a node needs to run: its definition and its inputs.
+    """Everything a node needs to run: its definition, its inputs, and identity.
 
     ``inputs`` maps each dependency's node id to that dependency's output.
+    ``tenant_id``/``run_id`` let executors attribute LLM and tool calls without
+    the scheduler needing to know about them.
     """
 
     node: Node
     inputs: dict[NodeId, dict[str, object]]
+    tenant_id: TenantId
+    run_id: RunId
 
 
 @dataclass(frozen=True)

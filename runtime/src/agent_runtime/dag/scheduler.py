@@ -157,7 +157,10 @@ class Scheduler:
                     payloads=[NodeStarted(node_id=node.node_id, attempt=attempt)],
                 )
                 try:
-                    result = await self._executor.execute(NodeContext(node=node, inputs=inputs))
+                    context = NodeContext(
+                        node=node, inputs=inputs, tenant_id=tenant_id, run_id=run_id
+                    )
+                    result = await self._executor.execute(context)
                 except AgentRuntimeError as exc:
                     policy = node.retry_policy
                     can_retry = attempt < policy.max_attempts and categorize(exc) in policy.retry_on

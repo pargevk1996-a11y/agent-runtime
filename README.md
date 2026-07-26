@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
-![Roadmap](https://img.shields.io/badge/roadmap-4%20of%2010-7B3FE4?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-5%20of%2010-7B3FE4?style=for-the-badge)
 
 </div>
 
@@ -195,8 +195,11 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] DAG model, events, pure fold with ready-set & cycle checks
   - [x] Scheduler drive-loop: bounded-parallel, retry, fail-fast, crash recovery
   - [x] Dynamic graph expansion, bounded reflection cycles, cooperative cancellation
-- [ ] **5 · LLM provider interface** + cost accounting — 🚧 *next*
-- [ ] **6 · MCP tool client** + sandboxed code executor
+- [x] **5 · LLM provider interface** + cost accounting
+  - [x] Provider-agnostic interface, fake provider, Decimal pricing
+  - [x] Cost ledger (per run/node/tenant) with RLS isolation
+  - [x] Metered gateway with node budget enforcement
+- [ ] **6 · MCP tool client** + sandboxed code executor — 🚧 *next*
 - [ ] **7 · Streaming bus** + FastAPI control plane
 - [ ] **8 · Reference agents** (executor / critic / verifier)
 - [ ] **9 · Observability** (OTEL + Prometheus + dashboards)
