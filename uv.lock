@@ -57,6 +57,12 @@ requires-dist = [
 name = "agent-runtime-agents"
 version = "0.1.0"
 source = { editable = "agents" }
+dependencies = [
+    { name = "agent-runtime" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "agent-runtime", editable = "runtime" }]
 
 [[package]]
 name = "agent-runtime-api"

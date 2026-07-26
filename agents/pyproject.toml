@@ -3,7 +3,10 @@ name = "agent-runtime-agents"
 version = "0.1.0"
 description = "Reference agents (executor, critic, verifier, planner) on the public runtime API."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["agent-runtime"]
+
+[tool.uv.sources]
+agent-runtime = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
