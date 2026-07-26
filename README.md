@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
-![Roadmap](https://img.shields.io/badge/roadmap-6%20of%2010-7B3FE4?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-7%20of%2010-7B3FE4?style=for-the-badge)
 
 </div>
 
@@ -204,8 +204,11 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] MCP stdio transport + reference tool servers
   - [x] Subprocess isolate (rlimits, timeout, no-net) + code_exec
   - [x] web_fetch egress allowlist + read-only sql_query
-- [ ] **7 · Streaming bus** + FastAPI control plane — 🚧 *next*
-- [ ] **8 · Reference agents** (executor / critic / verifier)
+- [x] **7 · Streaming bus** + FastAPI control plane
+  - [x] Redis Streams event bus with bounded fan-out
+  - [x] Control plane: create / status / cancel / replay + SSE stream
+  - [x] Thin Python SDK client
+- [ ] **8 · Reference agents** (executor / critic / verifier) — 🚧 *next*
 - [ ] **9 · Observability** (OTEL + Prometheus + dashboards)
 - [ ] **10 · Benchmarks** + docs + ADRs
 
