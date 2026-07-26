@@ -3,7 +3,11 @@ name = "agent-runtime-bench"
 version = "0.1.0"
 description = "Reproducible benchmarks: throughput, checkpoint recovery latency, cost-per-task."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["agent-runtime", "agent-runtime-agents"]
+
+[tool.uv.sources]
+agent-runtime = { workspace = true }
+agent-runtime-agents = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

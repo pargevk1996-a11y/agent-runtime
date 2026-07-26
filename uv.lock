@@ -91,6 +91,16 @@ requires-dist = [
 name = "agent-runtime-bench"
 version = "0.1.0"
 source = { editable = "bench" }
+dependencies = [
+    { name = "agent-runtime" },
+    { name = "agent-runtime-agents" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agent-runtime", editable = "runtime" },
+    { name = "agent-runtime-agents", editable = "agents" },
+]
 
 [[package]]
 name = "agent-runtime-sdk"
