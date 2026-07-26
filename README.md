@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
-![Roadmap](https://img.shields.io/badge/roadmap-8%20of%2010-7B3FE4?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-9%20of%2010-7B3FE4?style=for-the-badge)
 
 </div>
 
@@ -211,8 +211,11 @@ Built in strict phase order — no phase begins before the previous one lands.
 - [x] **8 · Reference agents** (executor / critic / verifier)
   - [x] CEV composition on the public API (reflection-driven retry)
   - [x] Run worker: lease, plan, and drive runs to completion
-- [ ] **9 · Observability** (OTEL + Prometheus + dashboards) — 🚧 *next*
-- [ ] **10 · Benchmarks** + docs + ADRs
+- [x] **9 · Observability** (OTEL + Prometheus)
+  - [x] OTEL spans on node / LLM / tool execution
+  - [x] Prometheus metrics + `/metrics` endpoint
+  - [x] Log/trace correlation (trace & span ids in logs)
+- [ ] **10 · Benchmarks** + docs + ADRs — 🚧 *next*
 
 <div align="center">
 <sub>Architecture decisions are recorded under <code>docs/adr/</code>.</sub>

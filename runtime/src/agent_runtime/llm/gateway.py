@@ -20,6 +20,10 @@ from agent_runtime.ids import NodeId, RunId, TenantId
 from agent_runtime.llm.errors import BudgetExceededError
 from agent_runtime.llm.pricing import PriceBook
 from agent_runtime.llm.provider import LLMProvider, LLMRequest, LLMResponse
+from agent_runtime.telemetry.metrics import record_llm
+from agent_runtime.telemetry.tracing import get_tracer
+
+_tracer = get_tracer(__name__)
 
 
 class LLMGateway:
@@ -41,11 +45,18 @@ class LLMGateway:
         max_tokens: int | None = None,
     ) -> LLMResponse:
         """Run a metered completion, recording it and enforcing node budgets."""
-        start = time.perf_counter()
-        response = await self._provider.complete(request)
-        latency_ms = int((time.perf_counter() - start) * 1000)
+        with _tracer.start_as_current_span("llm.complete") as span:
+            span.set_attribute("provider", self._provider.name)
+            span.set_attribute("model", request.model)
+            start = time.perf_counter()
+            response = await self._provider.complete(request)
+            latency_ms = int((time.perf_counter() - start) * 1000)
+            span.set_attribute("latency_ms", latency_ms)
+            span.set_attribute("input_tokens", response.usage.input_tokens)
+            span.set_attribute("output_tokens", response.usage.output_tokens)
 
         cost = self._pricebook.cost(self._provider.name, response.model, response.usage)
+        record_llm(response.usage.input_tokens, response.usage.output_tokens, cost)
         await self._ledger.record(
             tenant_id=tenant_id,
             run_id=run_id,

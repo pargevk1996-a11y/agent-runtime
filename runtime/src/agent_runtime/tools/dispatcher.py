@@ -20,6 +20,8 @@ from agent_runtime.errors import AgentRuntimeError
 from agent_runtime.events.envelope import Envelope
 from agent_runtime.ids import NodeId, RunId
 from agent_runtime.journal import RunJournal
+from agent_runtime.telemetry.metrics import record_tool
+from agent_runtime.telemetry.tracing import get_tracer
 from agent_runtime.tools.errors import ToolError, ToolIndeterminateError
 from agent_runtime.tools.events import (
     ToolCallCompleted,
@@ -29,6 +31,8 @@ from agent_runtime.tools.events import (
 )
 from agent_runtime.tools.model import IdempotencyClass, ToolResult, ToolSpec, idempotency_key
 from agent_runtime.tools.transport import ToolTransport
+
+_tracer = get_tracer(__name__)
 
 
 @dataclass
@@ -80,26 +84,40 @@ class ToolDispatcher:
         key = idempotency_key(self._run_id, self._node_id, self._attempt, self._call_index)
         self._call_index += 1
 
-        resolution = _scan(await self._journal.read(), key)
-        if resolution.completed is not None:
-            return ToolResult(output=resolution.completed)
-        if resolution.indeterminate:
-            raise ToolIndeterminateError("tool call previously indeterminate", context={"key": key})
-        if resolution.failed:
-            raise ToolError("tool call previously failed", context={"key": key})
-        if resolution.requested:
-            return await self._recover(tool, args, key)
+        with _tracer.start_as_current_span("tool.call") as span:
+            span.set_attribute("tool", tool)
+            span.set_attribute("idempotency_key", key)
 
-        await self._journal.append(
-            [ToolCallRequested(node_id=self._node_id, tool=tool, args=args, idempotency_key=key)]
-        )
-        return await self._invoke(tool, args, key)
+            resolution = _scan(await self._journal.read(), key)
+            if resolution.completed is not None:
+                record_tool("reused")
+                return ToolResult(output=resolution.completed)
+            if resolution.indeterminate:
+                record_tool("indeterminate")
+                raise ToolIndeterminateError(
+                    "tool call previously indeterminate", context={"key": key}
+                )
+            if resolution.failed:
+                record_tool("failed")
+                raise ToolError("tool call previously failed", context={"key": key})
+            if resolution.requested:
+                return await self._recover(tool, args, key)
+
+            await self._journal.append(
+                [
+                    ToolCallRequested(
+                        node_id=self._node_id, tool=tool, args=args, idempotency_key=key
+                    )
+                ]
+            )
+            return await self._invoke(tool, args, key)
 
     async def _recover(self, tool: str, args: dict[str, object], key: str) -> ToolResult:
         spec = self._specs.get(tool)
         klass = spec.idempotency if spec is not None else IdempotencyClass.UNKNOWN
         if klass is IdempotencyClass.IDEMPOTENT:
             return await self._invoke(tool, args, key)
+        record_tool("indeterminate")
         await self._journal.append(
             [
                 ToolCallIndeterminate(
@@ -116,6 +134,7 @@ class ToolDispatcher:
         try:
             result = await self._transport.invoke(tool, args, idempotency_key=key)
         except AgentRuntimeError as exc:
+            record_tool("failed")
             await self._journal.append(
                 [
                     ToolCallFailed(
@@ -126,5 +145,6 @@ class ToolDispatcher:
                 ]
             )
             raise
+        record_tool("completed")
         await self._journal.append([ToolCallCompleted(idempotency_key=key, result=result.output)])
         return result

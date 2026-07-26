@@ -14,6 +14,11 @@ here — that arrives with cancellation support).
 from __future__ import annotations
 
 import asyncio
+import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from opentelemetry.trace import Span
 
 from agent_runtime.dag.errors import MaxReflectionDepthError
 from agent_runtime.dag.events import (
@@ -35,8 +40,19 @@ from agent_runtime.runs.events import RunCancelled, RunFailed, RunStarted, RunSu
 from agent_runtime.runs.journal import LeaseJournal
 from agent_runtime.runs.state import RunStatus
 from agent_runtime.runs.store import Lease, RunStore
+from agent_runtime.telemetry.metrics import record_node, record_run
+from agent_runtime.telemetry.tracing import get_tracer
 
 _log = get_logger(__name__)
+_tracer = get_tracer(__name__)
+
+
+@asynccontextmanager
+async def _span(name: str) -> AsyncIterator[Span]:
+    """Async wrapper over the sync span CM, so it composes in one ``async with``."""
+    with _tracer.start_as_current_span(name) as span:
+        yield span
+
 
 _RETRYABLE = "retryable"
 _INDETERMINATE = "indeterminate"
@@ -148,7 +164,11 @@ class Scheduler:
         node: Node,
         inputs: dict[NodeId, dict[str, object]],
     ) -> None:
-        async with self._sem:
+        started = time.perf_counter()
+        async with self._sem, _span("node.execute") as span:
+            span.set_attribute("run_id", str(run_id))
+            span.set_attribute("node_id", str(node.node_id))
+            span.set_attribute("node_role", node.role.value)
             # Recovering a RUNNING node reuses its attempt so tool idempotency keys
             # match and completed calls are reused; a fresh/retry node advances it.
             attempt = node.attempt if node.status is NodeStatus.RUNNING else node.attempt + 1
@@ -177,13 +197,16 @@ class Scheduler:
                         attempt += 1
                         continue
                     await self._append_failure(tenant_id, run_id, lease, node, attempt, exc)
+                    record_node("failed", time.perf_counter() - started)
                     return
                 except Exception as exc:
                     # Isolate a node's failure (even an untyped bug) from the scheduler.
                     await self._append_failure(tenant_id, run_id, lease, node, attempt, exc)
+                    record_node("failed", time.perf_counter() - started)
                     return
                 else:
-                    await self._append_success(tenant_id, run_id, lease, node, attempt, result)
+                    ok = await self._append_success(tenant_id, run_id, lease, node, attempt, result)
+                    record_node("succeeded" if ok else "failed", time.perf_counter() - started)
                     return
 
     async def _append_success(
@@ -194,7 +217,8 @@ class Scheduler:
         node: Node,
         attempt: int,
         result: NodeResult,
-    ) -> None:
+    ) -> bool:
+        """Append the node's success (and any expansion); False if it instead failed."""
         too_deep = [s for s in result.spawn if s.reflection_depth > self._max_reflection_depth]
         if too_deep:
             await self._append_failure(
@@ -208,7 +232,7 @@ class Scheduler:
                     context={"max": self._max_reflection_depth},
                 ),
             )
-            return
+            return False
 
         payloads: list[EventPayload] = [NodeSucceeded(node_id=node.node_id, output=result.output)]
         for spawn in result.spawn:
@@ -227,6 +251,7 @@ class Scheduler:
                 EdgeAdded(from_node=edge.from_node, to_node=edge.to_node, edge_type=edge.edge_type)
             )
         await self._runs.append_events(tenant_id, run_id, lease=lease, payloads=payloads)
+        return True
 
     async def _append_failure(
         self,
@@ -263,6 +288,7 @@ class Scheduler:
         await self._runs.append_events(
             tenant_id, run_id, lease=lease, payloads=[RunSucceeded(result={})]
         )
+        record_run("succeeded")
 
     async def _finalize_failed(
         self, tenant_id: TenantId, run_id: RunId, lease: Lease, state: DagState
@@ -282,6 +308,7 @@ class Scheduler:
             )
         )
         await self._runs.append_events(tenant_id, run_id, lease=lease, payloads=payloads)
+        record_run("failed")
 
     async def _finalize_cancelled(
         self, tenant_id: TenantId, run_id: RunId, lease: Lease, state: DagState
@@ -295,6 +322,7 @@ class Scheduler:
         ]
         payloads.append(RunCancelled(reason="cancelled"))
         await self._runs.append_events(tenant_id, run_id, lease=lease, payloads=payloads)
+        record_run("cancelled")
 
     async def _finalize_deadlock(self, tenant_id: TenantId, run_id: RunId, lease: Lease) -> None:
         _log.warning("scheduler_deadlock", run_id=str(run_id))
@@ -304,3 +332,4 @@ class Scheduler:
             lease=lease,
             payloads=[RunFailed(error_class="DeadlockError", message="no runnable nodes remain")],
         )
+        record_run("failed")

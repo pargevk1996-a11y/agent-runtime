@@ -11,8 +11,9 @@ from collections.abc import AsyncIterator
 from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from agent_runtime.events.store import EventStore
 from agent_runtime.ids import RunId, TenantId, new_run_id
@@ -20,6 +21,7 @@ from agent_runtime.runs.errors import RunNotFoundError
 from agent_runtime.runs.events import RUN_CANCELLED, RUN_FAILED, RUN_SUCCEEDED
 from agent_runtime.runs.store import RunStore
 from agent_runtime.stream.bus import RedisStreamBus
+from agent_runtime.telemetry.metrics import render_metrics
 from agent_runtime_api.schemas import CreateRunRequest, CreateRunResponse, RunStatusResponse
 
 router = APIRouter()
@@ -47,6 +49,12 @@ def _event_store(request: Request) -> EventStore:
 
 def _bus(request: Request) -> RedisStreamBus:
     return cast(RedisStreamBus, request.app.state.bus)
+
+
+@router.get("/metrics")
+async def metrics() -> Response:
+    """Prometheus exposition of runtime metrics (process-wide, not tenant-scoped)."""
+    return Response(content=render_metrics(), media_type=CONTENT_TYPE_LATEST)
 
 
 @router.post("/runs", status_code=201)
