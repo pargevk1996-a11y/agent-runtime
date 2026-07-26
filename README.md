@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
-![Roadmap](https://img.shields.io/badge/roadmap-5%20of%2010-7B3FE4?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-6%20of%2010-7B3FE4?style=for-the-badge)
 
 </div>
 
@@ -199,8 +199,12 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] Provider-agnostic interface, fake provider, Decimal pricing
   - [x] Cost ledger (per run/node/tenant) with RLS isolation
   - [x] Metered gateway with node budget enforcement
-- [ ] **6 · MCP tool client** + sandboxed code executor — 🚧 *next*
-- [ ] **7 · Streaming bus** + FastAPI control plane
+- [x] **6 · MCP tool client** + sandboxed code executor
+  - [x] Durable idempotent dispatch (intent-first, crash-safe recovery)
+  - [x] MCP stdio transport + reference tool servers
+  - [x] Subprocess isolate (rlimits, timeout, no-net) + code_exec
+  - [x] web_fetch egress allowlist + read-only sql_query
+- [ ] **7 · Streaming bus** + FastAPI control plane — 🚧 *next*
 - [ ] **8 · Reference agents** (executor / critic / verifier)
 - [ ] **9 · Observability** (OTEL + Prometheus + dashboards)
 - [ ] **10 · Benchmarks** + docs + ADRs

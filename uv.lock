@@ -75,11 +75,15 @@ name = "agent-runtime-tools"
 version = "0.1.0"
 source = { editable = "tools" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "mcp" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "mcp", specifier = ">=1.0" }]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.30" },
+    { name = "mcp", specifier = ">=1.0" },
+]
 
 [[package]]
 name = "annotated-types"
