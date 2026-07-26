@@ -14,6 +14,8 @@ import asyncio
 import os
 from uuid import UUID
 
+import redis.asyncio as aioredis
+
 from agent_runtime.config import get_settings
 from agent_runtime.dag.events import register_dag_events
 from agent_runtime.dag.executor import NodeContext, NodeResult
@@ -24,6 +26,7 @@ from agent_runtime.ids import TenantId
 from agent_runtime.logging import get_logger
 from agent_runtime.runs.events import register_run_events
 from agent_runtime.runs.store import RunStore
+from agent_runtime.stream.bus import RedisStreamBus
 from agent_runtime.tools.events import register_tool_events
 from agent_runtime_agents.worker import Worker
 
@@ -48,7 +51,12 @@ async def main() -> None:
     tenant = TenantId(UUID(os.environ["AR_WORKER_TENANT"]))
     settings = get_settings()
     pool = await create_pool(str(settings.db_app_dsn))
-    worker = Worker(RunStore(pool, EventStore(pool, registry=_registry())), _NoopExecutor())
+    redis: aioredis.Redis = aioredis.from_url(str(settings.redis_url), decode_responses=True)
+    # Publish committed events so live subscribers see worker-driven runs.
+    run_store = RunStore(
+        pool, EventStore(pool, registry=_registry()), publisher=RedisStreamBus(redis)
+    )
+    worker = Worker(run_store, _NoopExecutor())
     _log.info("worker_started", tenant_id=str(tenant))
     try:
         while True:
@@ -59,6 +67,7 @@ async def main() -> None:
                 _log.info("run_executed", run_id=str(claimed))
     finally:
         await pool.close()
+        await redis.aclose()
 
 
 if __name__ == "__main__":
