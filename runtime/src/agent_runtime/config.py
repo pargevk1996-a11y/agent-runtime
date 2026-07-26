@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     otel_endpoint: str | None = None
     log_level: str = "INFO"
     snapshot_interval_events: int = 100
+    scheduler_concurrency: int = 8
+    max_reflection_depth: int = 3
 
     @property
     def is_production(self) -> bool:

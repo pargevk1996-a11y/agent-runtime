@@ -9,7 +9,7 @@ import asyncpg
 import pytest
 
 from agent_runtime.dag.events import NodeAdded, NodeStarted, register_dag_events
-from agent_runtime.dag.executor import NodeContext
+from agent_runtime.dag.executor import NodeContext, NodeResult, SpawnNode
 from agent_runtime.dag.model import NodeBudget, NodeRole, NodeStatus, RetryPolicy
 from agent_runtime.dag.scheduler import Scheduler
 from agent_runtime.dag.state import fold_dag
@@ -24,7 +24,7 @@ from agent_runtime.runs.store import RunStore
 
 pytestmark = pytest.mark.integration
 
-_Behavior = Callable[[], dict[str, object]]
+_Behavior = Callable[[], NodeResult]
 
 
 def _registry() -> EventRegistry:
@@ -41,14 +41,14 @@ class _Executor:
         self.calls: list[NodeId] = []
         self.behaviors: dict[NodeId, _Behavior] = {}
 
-    async def execute(self, ctx: NodeContext) -> dict[str, object]:
+    async def execute(self, ctx: NodeContext) -> NodeResult:
         self.calls.append(ctx.node.node_id)
         behavior = self.behaviors.get(ctx.node.node_id)
-        return behavior() if behavior is not None else {}
+        return behavior() if behavior is not None else NodeResult(output={})
 
 
 def _always_fail(error: Exception) -> _Behavior:
-    def behavior() -> dict[str, object]:
+    def behavior() -> NodeResult:
         raise error
 
     return behavior
@@ -57,11 +57,24 @@ def _always_fail(error: Exception) -> _Behavior:
 def _fail_then_ok(times: int, error: Exception) -> _Behavior:
     counter = {"n": 0}
 
-    def behavior() -> dict[str, object]:
+    def behavior() -> NodeResult:
         if counter["n"] < times:
             counter["n"] += 1
             raise error
-        return {}
+        return NodeResult(output={})
+
+    return behavior
+
+
+def _spawn(child: NodeId, deps: tuple[NodeId, ...] = (), reflection_depth: int = 0) -> _Behavior:
+    def behavior() -> NodeResult:
+        node = SpawnNode(
+            node_id=child,
+            role=NodeRole.TASK,
+            dependencies=deps,
+            reflection_depth=reflection_depth,
+        )
+        return NodeResult(output={}, spawn=(node,))
 
     return behavior
 
@@ -195,3 +208,57 @@ async def test_recovery_resumes_running_node(run_store: RunStore) -> None:
     assert executor.calls == [a]  # re-executed once on recovery
     dag = fold_dag(await run_store.read_events(tenant, run))
     assert dag.nodes[a].status is NodeStatus.SUCCEEDED
+
+
+async def test_dynamic_expansion_runs_spawned_node(run_store: RunStore) -> None:
+    tenant, run = new_tenant_id(), new_run_id()
+    a, b = new_node_id(), new_node_id()
+    await run_store.create_run(tenant, run, input={})
+    lease = await run_store.acquire_lease(tenant, run, worker="w", ttl=timedelta(minutes=5))
+    await run_store.append_events(tenant, run, lease=lease, payloads=[_node(a)])
+
+    executor = _Executor()
+    executor.behaviors[a] = _spawn(b, deps=(a,))  # node a spawns b on success
+    await Scheduler(run_store, executor).run(tenant, run, lease)
+
+    assert (await run_store.load_state(tenant, run)).status is RunStatus.SUCCEEDED
+    dag = fold_dag(await run_store.read_events(tenant, run))
+    assert set(dag.nodes) == {a, b}
+    assert dag.nodes[b].status is NodeStatus.SUCCEEDED
+    assert b in executor.calls
+
+
+async def test_reflection_beyond_max_depth_fails(run_store: RunStore) -> None:
+    tenant, run = new_tenant_id(), new_run_id()
+    a, reflected = new_node_id(), new_node_id()
+    await run_store.create_run(tenant, run, input={})
+    lease = await run_store.acquire_lease(tenant, run, worker="w", ttl=timedelta(minutes=5))
+    await run_store.append_events(tenant, run, lease=lease, payloads=[_node(a)])
+
+    executor = _Executor()
+    executor.behaviors[a] = _spawn(reflected, deps=(a,), reflection_depth=2)
+    await Scheduler(run_store, executor, max_reflection_depth=1).run(tenant, run, lease)
+
+    assert (await run_store.load_state(tenant, run)).status is RunStatus.FAILED
+    dag = fold_dag(await run_store.read_events(tenant, run))
+    assert dag.nodes[a].status is NodeStatus.FAILED
+    assert dag.nodes[a].error_class == "MaxReflectionDepthError"
+    assert reflected not in dag.nodes
+
+
+async def test_cancellation_skips_pending_and_cancels_run(run_store: RunStore) -> None:
+    tenant, run = new_tenant_id(), new_run_id()
+    a, b = new_node_id(), new_node_id()
+    await run_store.create_run(tenant, run, input={})
+    lease = await run_store.acquire_lease(tenant, run, worker="w", ttl=timedelta(minutes=5))
+    await run_store.append_events(tenant, run, lease=lease, payloads=[_node(a), _node(b, (a,))])
+    await run_store.request_cancel(tenant, run)
+
+    executor = _Executor()
+    await Scheduler(run_store, executor).run(tenant, run, lease)
+
+    assert (await run_store.load_state(tenant, run)).status is RunStatus.CANCELLED
+    dag = fold_dag(await run_store.read_events(tenant, run))
+    assert dag.nodes[a].status is NodeStatus.SKIPPED
+    assert dag.nodes[b].status is NodeStatus.SKIPPED
+    assert executor.calls == []

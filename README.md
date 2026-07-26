@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
-![Roadmap](https://img.shields.io/badge/roadmap-3%20of%2010-7B3FE4?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-4%20of%2010-7B3FE4?style=for-the-badge)
 
 </div>
 
@@ -191,11 +191,11 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] Run lifecycle events, state machine, pure event fold
   - [x] `runs` projection, lease + fencing token, snapshot side-table
   - [x] Crash recovery — snapshot + tail replay, verified from a fresh process
-- [ ] **4 · Scheduler** + DAG executor — 🚧 *in progress*
+- [x] **4 · Scheduler** + DAG executor
   - [x] DAG model, events, pure fold with ready-set & cycle checks
   - [x] Scheduler drive-loop: bounded-parallel, retry, fail-fast, crash recovery
-  - [ ] Dynamic graph expansion, bounded reflection cycles, cancellation
-- [ ] **5 · LLM provider interface** + cost accounting
+  - [x] Dynamic graph expansion, bounded reflection cycles, cooperative cancellation
+- [ ] **5 · LLM provider interface** + cost accounting — 🚧 *next*
 - [ ] **6 · MCP tool client** + sandboxed code executor
 - [ ] **7 · Streaming bus** + FastAPI control plane
 - [ ] **8 · Reference agents** (executor / critic / verifier)

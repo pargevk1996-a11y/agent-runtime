@@ -15,20 +15,23 @@ from __future__ import annotations
 
 import asyncio
 
+from agent_runtime.dag.errors import MaxReflectionDepthError
 from agent_runtime.dag.events import (
+    EdgeAdded,
+    NodeAdded,
     NodeFailed,
     NodeSkipped,
     NodeStarted,
     NodeSucceeded,
 )
-from agent_runtime.dag.executor import NodeContext, NodeExecutor
+from agent_runtime.dag.executor import NodeContext, NodeExecutor, NodeResult
 from agent_runtime.dag.model import EdgeType, NodeStatus
 from agent_runtime.dag.state import DagOutcome, DagState, Node, fold_dag
 from agent_runtime.errors import AgentRuntimeError, IndeterminateError, RetryableError
 from agent_runtime.events.envelope import EventPayload
 from agent_runtime.ids import NodeId, RunId, TenantId
 from agent_runtime.logging import get_logger
-from agent_runtime.runs.events import RunFailed, RunStarted, RunSucceeded
+from agent_runtime.runs.events import RunCancelled, RunFailed, RunStarted, RunSucceeded
 from agent_runtime.runs.state import RunStatus
 from agent_runtime.runs.store import Lease, RunStore
 
@@ -52,11 +55,17 @@ class Scheduler:
     """Drives one run's DAG, appending node/run events under a held lease."""
 
     def __init__(
-        self, run_store: RunStore, executor: NodeExecutor, *, concurrency: int = 8
+        self,
+        run_store: RunStore,
+        executor: NodeExecutor,
+        *,
+        concurrency: int = 8,
+        max_reflection_depth: int = 3,
     ) -> None:
         self._runs = run_store
         self._executor = executor
         self._sem = asyncio.Semaphore(concurrency)
+        self._max_reflection_depth = max_reflection_depth
 
     async def run(self, tenant_id: TenantId, run_id: RunId, lease: Lease) -> None:
         """Drive the run to a terminal state (SUCCEEDED or FAILED)."""
@@ -65,6 +74,12 @@ class Scheduler:
         in_flight: set[NodeId] = set()
         tasks: dict[asyncio.Task[None], NodeId] = {}
         while True:
+            if await self._runs.is_cancel_requested(tenant_id, run_id):
+                await self._drain(tasks, in_flight)
+                final = fold_dag(await self._runs.read_events(tenant_id, run_id))
+                await self._finalize_cancelled(tenant_id, run_id, lease, final)
+                return
+
             state = fold_dag(await self._runs.read_events(tenant_id, run_id))
             outcome = state.outcome()
 
@@ -142,7 +157,7 @@ class Scheduler:
                     payloads=[NodeStarted(node_id=node.node_id, attempt=attempt)],
                 )
                 try:
-                    output = await self._executor.execute(NodeContext(node=node, inputs=inputs))
+                    result = await self._executor.execute(NodeContext(node=node, inputs=inputs))
                 except AgentRuntimeError as exc:
                     policy = node.retry_policy
                     can_retry = attempt < policy.max_attempts and categorize(exc) in policy.retry_on
@@ -156,13 +171,50 @@ class Scheduler:
                     await self._append_failure(tenant_id, run_id, lease, node, attempt, exc)
                     return
                 else:
-                    await self._runs.append_events(
-                        tenant_id,
-                        run_id,
-                        lease=lease,
-                        payloads=[NodeSucceeded(node_id=node.node_id, output=output)],
-                    )
+                    await self._append_success(tenant_id, run_id, lease, node, attempt, result)
                     return
+
+    async def _append_success(
+        self,
+        tenant_id: TenantId,
+        run_id: RunId,
+        lease: Lease,
+        node: Node,
+        attempt: int,
+        result: NodeResult,
+    ) -> None:
+        too_deep = [s for s in result.spawn if s.reflection_depth > self._max_reflection_depth]
+        if too_deep:
+            await self._append_failure(
+                tenant_id,
+                run_id,
+                lease,
+                node,
+                attempt,
+                MaxReflectionDepthError(
+                    "reflection would exceed the maximum depth",
+                    context={"max": self._max_reflection_depth},
+                ),
+            )
+            return
+
+        payloads: list[EventPayload] = [NodeSucceeded(node_id=node.node_id, output=result.output)]
+        for spawn in result.spawn:
+            payloads.append(
+                NodeAdded(
+                    node_id=spawn.node_id,
+                    role=spawn.role,
+                    dependencies=spawn.dependencies,
+                    retry_policy=spawn.retry_policy,
+                    budget=spawn.budget,
+                    reflection_depth=spawn.reflection_depth,
+                )
+            )
+        for edge in result.edges:
+            payloads.append(
+                EdgeAdded(from_node=edge.from_node, to_node=edge.to_node, edge_type=edge.edge_type)
+            )
+        await self._runs.append_events(tenant_id, run_id, lease=lease, payloads=payloads)
 
     async def _append_failure(
         self,
@@ -217,6 +269,19 @@ class Scheduler:
                 message=(failed.error_message if failed else None) or "run failed",
             )
         )
+        await self._runs.append_events(tenant_id, run_id, lease=lease, payloads=payloads)
+
+    async def _finalize_cancelled(
+        self, tenant_id: TenantId, run_id: RunId, lease: Lease, state: DagState
+    ) -> None:
+        pending = sorted(
+            (n for n in state.nodes.values() if n.status is NodeStatus.PENDING),
+            key=lambda n: n.node_id,
+        )
+        payloads: list[EventPayload] = [
+            NodeSkipped(node_id=n.node_id, reason="run cancelled") for n in pending
+        ]
+        payloads.append(RunCancelled(reason="cancelled"))
         await self._runs.append_events(tenant_id, run_id, lease=lease, payloads=payloads)
 
     async def _finalize_deadlock(self, tenant_id: TenantId, run_id: RunId, lease: Lease) -> None:

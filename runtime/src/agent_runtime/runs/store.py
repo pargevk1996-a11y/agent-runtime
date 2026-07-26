@@ -170,6 +170,28 @@ class RunStore:
         """Read a run's full event log (for projecting the DAG, for example)."""
         return await self._events.read(tenant_id, run_id)
 
+    async def request_cancel(self, tenant_id: TenantId, run_id: RunId) -> None:
+        """Flag a run for cancellation. Requires no lease; the scheduler observes it."""
+        partition_key = partition_month(run_id)
+        async with tenant_connection(self._pool, tenant_id) as conn:
+            await conn.execute(
+                "UPDATE runs SET cancel_requested = true, updated_at = now() "
+                "WHERE partition_key = $1 AND run_id = $2",
+                partition_key,
+                run_id,
+            )
+
+    async def is_cancel_requested(self, tenant_id: TenantId, run_id: RunId) -> bool:
+        """Whether cancellation has been requested for this run."""
+        partition_key = partition_month(run_id)
+        async with tenant_connection(self._pool, tenant_id) as conn:
+            row = await conn.fetchrow(
+                "SELECT cancel_requested FROM runs WHERE partition_key = $1 AND run_id = $2",
+                partition_key,
+                run_id,
+            )
+        return bool(row["cancel_requested"]) if row is not None else False
+
     async def load_state(self, tenant_id: TenantId, run_id: RunId) -> RunState:
         """Reconstruct a run's state, folding from the latest snapshot if any.
 
