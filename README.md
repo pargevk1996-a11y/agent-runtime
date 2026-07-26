@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
-![Roadmap](https://img.shields.io/badge/roadmap-9%20of%2010-7B3FE4?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-10%20of%2010%20complete-2EA44F?style=for-the-badge)
 
 </div>
 
@@ -215,8 +215,30 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] OTEL spans on node / LLM / tool execution
   - [x] Prometheus metrics + `/metrics` endpoint
   - [x] Log/trace correlation (trace & span ids in logs)
-- [ ] **10 · Benchmarks** + docs + ADRs — 🚧 *next*
+- [x] **10 · Benchmarks** + docs + ADRs
+  - [x] Throughput, recovery-latency, cost-per-task on 3 workloads
+  - [x] ADRs, sequence diagrams, generated event-schema reference
+
+---
+
+## Documentation
+
+- **[Architecture decisions](docs/adr/)** — the load-bearing choices, in ADR form
+  (durable execution, at-least-once dispatch, envelope + upcasting, RLS &
+  partitioning, lease/fencing, intent-before-execution, cost ledger, streaming,
+  CEV as composition, swappable isolate).
+- **[Sequence diagrams](docs/diagrams.md)** — durable append & recovery, tool
+  dispatch & recovery, live subscription, the CEV reflection loop.
+- **[Event schema reference](docs/events.md)** — every event payload and version,
+  generated from the registry via `docs/generate_events.py`.
+
+## Benchmarks
+
+```sh
+make up
+uv run python -m agent_runtime_bench   # throughput · recovery latency · cost-per-task
+```
 
 <div align="center">
-<sub>Architecture decisions are recorded under <code>docs/adr/</code>.</sub>
+<sub>Built as a strict, phase-ordered durable-execution engine — the layer agent frameworks sit on.</sub>
 </div>

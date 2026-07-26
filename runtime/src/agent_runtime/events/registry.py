@@ -81,6 +81,10 @@ class EventRegistry:
         """Return the current schema version for an ``event_type``."""
         return self._require(event_type).version
 
+    def registered(self) -> list[tuple[str, type[EventPayload], int]]:
+        """List ``(event_type, model, version)`` for every registered payload."""
+        return [(name, reg.model, reg.version) for name, reg in self._by_type.items()]
+
     def decode(self, event_type: str, version: int, raw: Mapping[str, object]) -> EventPayload:
         """Upcast a stored payload to the current version and validate it.
 

@@ -29,6 +29,12 @@ test: ## Fast unit tests only
 test-integration: ## Integration tests (real Postgres/Redis via testcontainers)
 	uv run pytest -m integration
 
+bench: ## Run benchmarks against local infra (needs `make up` + .env)
+	uv run python -m agent_runtime_bench
+
+gen-docs: ## Regenerate the event-schema reference from the registry
+	uv run python docs/generate_events.py
+
 up: ## Start local infra (Postgres, Redis, OTEL, Prometheus)
 	docker compose up -d
 
