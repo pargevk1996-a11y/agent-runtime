@@ -8,6 +8,7 @@ dependencies = [
     "mcp>=1.0",
     "pydantic>=2",
     "pydantic-settings>=2",
+    "redis>=5",
     "structlog>=24",
 ]
 

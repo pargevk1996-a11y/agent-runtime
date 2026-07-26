@@ -14,6 +14,7 @@ from collections.abc import Iterator
 import asyncpg
 import pytest
 from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
 
 from agent_runtime.db.migrations import apply_migrations
 
@@ -49,3 +50,11 @@ def pg() -> Iterator[dict[str, str]]:
 
         asyncio.run(_bootstrap())
         yield {"admin_dsn": admin_dsn, "app_dsn": app_dsn}
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    with RedisContainer("redis:7") as container:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(6379)
+        yield f"redis://{host}:{port}/0"

@@ -22,6 +22,7 @@ from agent_runtime.db.pool import tenant_connection
 from agent_runtime.events.envelope import Envelope, EventPayload
 from agent_runtime.events.store import EventStore
 from agent_runtime.ids import RunId, TenantId, partition_month
+from agent_runtime.logging import get_logger
 from agent_runtime.runs.errors import (
     LeaseHeldError,
     RunAlreadyExistsError,
@@ -31,6 +32,9 @@ from agent_runtime.runs.errors import (
 from agent_runtime.runs.events import RunCreated
 from agent_runtime.runs.snapshots import CheckpointManager
 from agent_runtime.runs.state import RunState, RunStatus, apply, fold
+from agent_runtime.stream.bus import StreamPublisher
+
+_log = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -73,10 +77,22 @@ class RunStore:
         pool: asyncpg.Pool[asyncpg.Record],
         event_store: EventStore,
         checkpoints: CheckpointManager | None = None,
+        publisher: StreamPublisher | None = None,
     ) -> None:
         self._pool = pool
         self._events = event_store
         self._checkpoints = checkpoints
+        self._publisher = publisher
+
+    async def _publish(self, run_id: RunId, envelopes: list[Envelope]) -> None:
+        # Best-effort live fan-out: the log is the source of truth, so a publish
+        # failure must not fail the append that already committed.
+        if self._publisher is None:
+            return
+        try:
+            await self._publisher.publish(run_id, envelopes)
+        except Exception:
+            _log.warning("stream_publish_failed", run_id=str(run_id), exc_info=True)
 
     async def create_run(
         self, tenant_id: TenantId, run_id: RunId, *, input: dict[str, object]
@@ -95,9 +111,11 @@ class RunStore:
                 raise RunAlreadyExistsError(
                     "run already exists", context={"run_id": str(run_id)}
                 ) from exc
-            return await self._events.append(
+            created = await self._events.append(
                 tenant_id, run_id, after_seq=0, payload=RunCreated(input=input), conn=conn
             )
+        await self._publish(run_id, [created])
+        return created
 
     async def acquire_lease(
         self, tenant_id: TenantId, run_id: RunId, *, worker: str, ttl: timedelta
@@ -164,6 +182,7 @@ class RunStore:
             await conn.execute(
                 _UPDATE_PROJECTION, partition_key, run_id, state.status.value, appended[-1].seq
             )
+        await self._publish(run_id, appended)
         return appended
 
     async def read_events(self, tenant_id: TenantId, run_id: RunId) -> list[Envelope]:
