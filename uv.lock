@@ -78,6 +78,7 @@ dependencies = [
     { name = "agent-runtime" },
     { name = "fastapi" },
     { name = "redis" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -85,6 +86,7 @@ requires-dist = [
     { name = "agent-runtime", editable = "runtime" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "redis", specifier = ">=5" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
 
 [[package]]

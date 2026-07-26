@@ -7,6 +7,7 @@ dependencies = [
     "agent-runtime",
     "fastapi>=0.110",
     "redis>=5",
+    "uvicorn>=0.30",
 ]
 
 [tool.uv.sources]

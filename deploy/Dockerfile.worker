@@ -1,0 +1,18 @@
+# Production image for the run worker (separate process from the API).
+#
+#   docker build -f deploy/Dockerfile.worker -t agent-runtime-worker .
+#   docker run --env-file .env -e AR_WORKER_TENANT=<uuid> agent-runtime-worker
+
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+WORKDIR /app
+COPY . .
+# The agents package pulls in runtime; the worker drives the scheduler.
+RUN uv sync --package agent-runtime-agents --no-dev --frozen
+
+FROM python:3.12-slim
+WORKDIR /app
+COPY --from=builder /app /app
+ENV PATH="/app/.venv/bin:$PATH"
+RUN useradd --create-home app && chown -R app /app
+USER app
+CMD ["python", "-m", "agent_runtime_agents.run_worker"]

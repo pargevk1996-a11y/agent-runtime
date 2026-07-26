@@ -1,0 +1,19 @@
+# Production image for the control-plane API.
+#
+#   docker build -f deploy/Dockerfile.api -t agent-runtime-api .
+#   docker run -p 8000:8000 --env-file .env agent-runtime-api
+
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+WORKDIR /app
+COPY . .
+# Install only the api package (and its dependency on runtime), no dev tools.
+RUN uv sync --package agent-runtime-api --no-dev --frozen
+
+FROM python:3.12-slim
+WORKDIR /app
+COPY --from=builder /app /app
+ENV PATH="/app/.venv/bin:$PATH"
+RUN useradd --create-home app && chown -R app /app
+USER app
+EXPOSE 8000
+CMD ["uvicorn", "agent_runtime_api.asgi:app", "--host", "0.0.0.0", "--port", "8000"]
