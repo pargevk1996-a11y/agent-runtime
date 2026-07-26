@@ -14,7 +14,7 @@
 ![Lint](https://img.shields.io/badge/ruff-checked-261230?style=for-the-badge&logo=ruff&logoColor=white)
 ![Tests](https://img.shields.io/badge/pytest%20+%20hypothesis-passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 ![Status](https://img.shields.io/badge/status-pre--alpha-FF8800?style=for-the-badge)
-![Roadmap](https://img.shields.io/badge/roadmap-7%20of%2010-7B3FE4?style=for-the-badge)
+![Roadmap](https://img.shields.io/badge/roadmap-8%20of%2010-7B3FE4?style=for-the-badge)
 
 </div>
 
@@ -208,8 +208,10 @@ Built in strict phase order — no phase begins before the previous one lands.
   - [x] Redis Streams event bus with bounded fan-out
   - [x] Control plane: create / status / cancel / replay + SSE stream
   - [x] Thin Python SDK client
-- [ ] **8 · Reference agents** (executor / critic / verifier) — 🚧 *next*
-- [ ] **9 · Observability** (OTEL + Prometheus + dashboards)
+- [x] **8 · Reference agents** (executor / critic / verifier)
+  - [x] CEV composition on the public API (reflection-driven retry)
+  - [x] Run worker: lease, plan, and drive runs to completion
+- [ ] **9 · Observability** (OTEL + Prometheus + dashboards) — 🚧 *next*
 - [ ] **10 · Benchmarks** + docs + ADRs
 
 <div align="center">

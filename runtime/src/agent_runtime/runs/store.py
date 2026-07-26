@@ -189,6 +189,20 @@ class RunStore:
         """Read a run's full event log (for projecting the DAG, for example)."""
         return await self._events.read(tenant_id, run_id)
 
+    async def find_pending(self, tenant_id: TenantId) -> RunId | None:
+        """Return a pending, unleased run for this tenant, or ``None``.
+
+        Non-atomic: two workers may find the same run, but only one wins the
+        lease, so the race is harmless.
+        """
+        async with tenant_connection(self._pool, tenant_id) as conn:
+            row = await conn.fetchrow(
+                "SELECT run_id FROM runs "
+                "WHERE status = 'pending' AND (lease_owner IS NULL OR lease_expires_at < now()) "
+                "ORDER BY created_at LIMIT 1"
+            )
+        return RunId(row["run_id"]) if row is not None else None
+
     async def request_cancel(self, tenant_id: TenantId, run_id: RunId) -> None:
         """Flag a run for cancellation. Requires no lease; the scheduler observes it."""
         partition_key = partition_month(run_id)
