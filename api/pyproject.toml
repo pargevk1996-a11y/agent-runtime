@@ -3,7 +3,14 @@ name = "agent-runtime-api"
 version = "0.1.0"
 description = "FastAPI control plane for agent-runtime (create/subscribe/cancel/replay runs)."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "agent-runtime",
+    "fastapi>=0.110",
+    "redis>=5",
+]
+
+[tool.uv.sources]
+agent-runtime = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

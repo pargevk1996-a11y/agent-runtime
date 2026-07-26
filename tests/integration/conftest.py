@@ -9,10 +9,11 @@ schema-owning ``ar_admin`` in tests). Tests receive DSNs for both the admin role
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 
 import asyncpg
 import pytest
+import redis.asyncio as aioredis
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
@@ -58,3 +59,13 @@ def redis_url() -> Iterator[str]:
         host = container.get_container_host_ip()
         port = container.get_exposed_port(6379)
         yield f"redis://{host}:{port}/0"
+
+
+@pytest.fixture
+async def redis_client(redis_url: str) -> AsyncIterator[aioredis.Redis]:
+    client: aioredis.Redis = aioredis.from_url(redis_url, decode_responses=True)
+    try:
+        await client.flushall()
+        yield client
+    finally:
+        await client.aclose()

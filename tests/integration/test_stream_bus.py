@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
@@ -41,16 +40,6 @@ def _registry() -> EventRegistry:
     registry = EventRegistry()
     register_run_events(registry)
     return registry
-
-
-@pytest.fixture
-async def redis_client(redis_url: str) -> AsyncIterator[aioredis.Redis]:
-    client: aioredis.Redis = aioredis.from_url(redis_url, decode_responses=True)
-    try:
-        await client.flushall()
-        yield client
-    finally:
-        await client.aclose()
 
 
 async def test_publish_and_tail_in_order(redis_client: aioredis.Redis) -> None:
