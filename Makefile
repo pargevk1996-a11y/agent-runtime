@@ -2,7 +2,7 @@
 # Every target shells through `uv run` so contributors need only `uv` installed;
 # the toolchain versions are pinned by uv.lock, identical to CI.
 
-.PHONY: help install lint fmt fmt-check typecheck test test-integration up down
+.PHONY: help install lint fmt fmt-check typecheck test test-integration up down migrate bench gen-docs
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -29,13 +29,16 @@ test: ## Fast unit tests only
 test-integration: ## Integration tests (real Postgres/Redis via testcontainers)
 	uv run pytest -m integration
 
-bench: ## Run benchmarks against local infra (needs `make up` + .env)
+migrate: ## Apply database migrations (needs `make up` + .env)
+	uv run python -m agent_runtime.db.migrate
+
+bench: ## Run benchmarks against local infra (needs up + migrate + .env)
 	uv run python -m agent_runtime_bench
 
 gen-docs: ## Regenerate the event-schema reference from the registry
 	uv run python docs/generate_events.py
 
-up: ## Start local infra (Postgres, Redis, OTEL, Prometheus)
+up: ## Start local infra (Postgres + Redis)
 	docker compose up -d
 
 down: ## Stop local infra and drop volumes

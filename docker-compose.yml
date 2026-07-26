@@ -1,0 +1,37 @@
+# Local development infrastructure.
+#
+#   make up        # start Postgres + Redis
+#   make migrate   # create schema (roles come from the init script below)
+#   make bench     # run benchmarks against it
+#
+# Observability sinks (OTEL collector, Prometheus) are optional: the app exposes
+# /metrics for Prometheus to scrape and OTEL tracing is a no-op without a
+# collector, so neither is required to run the runtime.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ar_admin
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: agent_runtime
+    ports:
+      # Override AR_POSTGRES_PORT in .env if 5432 is taken on the host.
+      - "${AR_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./deploy/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ar_admin -d agent_runtime"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15

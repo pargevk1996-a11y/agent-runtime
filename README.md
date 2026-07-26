@@ -167,14 +167,17 @@ Requires **[uv](https://docs.astral.sh/uv/)** and **Docker**.
 
 ```sh
 make install          # sync workspace + dev tools
-cp .env.example .env  # then edit as needed
-make up               # start Postgres, Redis, OTEL, Prometheus
+cp .env.example .env  # if 5432 is taken, set AR_POSTGRES_PORT + the DSN port
+make up               # start Postgres + Redis
+make migrate          # create the schema (roles come from the init script)
 make lint typecheck   # ruff + strict mypy
 make test             # unit tests
-make test-integration # integration tests (real infra via testcontainers)
+make test-integration # integration tests (spin their own infra via testcontainers)
+make bench            # optional: throughput / recovery / cost benchmarks
 ```
 
-Run `make help` for the full list of targets.
+Run `make help` for the full list of targets. The test suite uses testcontainers,
+so `make test`/`make test-integration` need only Docker — not `make up`.
 
 ---
 
