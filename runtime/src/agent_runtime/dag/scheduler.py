@@ -32,6 +32,7 @@ from agent_runtime.events.envelope import EventPayload
 from agent_runtime.ids import NodeId, RunId, TenantId
 from agent_runtime.logging import get_logger
 from agent_runtime.runs.events import RunCancelled, RunFailed, RunStarted, RunSucceeded
+from agent_runtime.runs.journal import LeaseJournal
 from agent_runtime.runs.state import RunStatus
 from agent_runtime.runs.store import Lease, RunStore
 
@@ -148,7 +149,10 @@ class Scheduler:
         inputs: dict[NodeId, dict[str, object]],
     ) -> None:
         async with self._sem:
-            attempt = node.attempt + 1
+            # Recovering a RUNNING node reuses its attempt so tool idempotency keys
+            # match and completed calls are reused; a fresh/retry node advances it.
+            attempt = node.attempt if node.status is NodeStatus.RUNNING else node.attempt + 1
+            journal = LeaseJournal(self._runs, tenant_id, run_id, lease)
             while True:
                 await self._runs.append_events(
                     tenant_id,
@@ -158,7 +162,12 @@ class Scheduler:
                 )
                 try:
                     context = NodeContext(
-                        node=node, inputs=inputs, tenant_id=tenant_id, run_id=run_id
+                        node=node,
+                        inputs=inputs,
+                        tenant_id=tenant_id,
+                        run_id=run_id,
+                        journal=journal,
+                        attempt=attempt,
                     )
                     result = await self._executor.execute(context)
                 except AgentRuntimeError as exc:

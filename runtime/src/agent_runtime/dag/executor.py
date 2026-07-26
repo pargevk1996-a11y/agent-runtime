@@ -15,6 +15,7 @@ from typing import Protocol
 from agent_runtime.dag.model import EdgeType, NodeBudget, NodeRole, RetryPolicy
 from agent_runtime.dag.state import Node
 from agent_runtime.ids import NodeId, RunId, TenantId
+from agent_runtime.journal import RunJournal
 
 
 @dataclass(frozen=True)
@@ -22,14 +23,18 @@ class NodeContext:
     """Everything a node needs to run: its definition, its inputs, and identity.
 
     ``inputs`` maps each dependency's node id to that dependency's output.
-    ``tenant_id``/``run_id`` let executors attribute LLM and tool calls without
-    the scheduler needing to know about them.
+    ``tenant_id``/``run_id`` attribute LLM and tool calls without the scheduler
+    needing to know about them. ``journal`` is the lease-bound log for durable
+    tool dispatch, and ``attempt`` is the current attempt number (so tool
+    idempotency keys are stable across crash recovery of the same attempt).
     """
 
     node: Node
     inputs: dict[NodeId, dict[str, object]]
     tenant_id: TenantId
     run_id: RunId
+    journal: RunJournal
+    attempt: int
 
 
 @dataclass(frozen=True)
