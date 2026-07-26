@@ -4,9 +4,8 @@ The runtime logs structured JSON to stdout via ``structlog`` — never ``print``
 never free-form strings. Structured records are what make runs greppable and
 machine-analysable, which the audit-trail requirement depends on.
 
-The processor chain is ordered so that Phase 9 can insert an OpenTelemetry
-trace/span-id processor at a single marked point without touching anything else;
-OpenTelemetry is deliberately *not* a dependency yet (it belongs to Phase 9).
+Each record carries the active OpenTelemetry trace/span ids (when a span is
+current), so logs and traces cross-reference without any other change.
 """
 
 from __future__ import annotations
@@ -15,7 +14,17 @@ import logging
 from typing import cast
 
 import structlog
-from structlog.typing import FilteringBoundLogger
+from opentelemetry import trace
+from structlog.typing import EventDict, FilteringBoundLogger, WrappedLogger
+
+
+def _add_otel_context(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
+    """structlog processor: add trace/span ids when a span is current."""
+    span_context = trace.get_current_span().get_span_context()
+    if span_context.is_valid:
+        event_dict["trace_id"] = format(span_context.trace_id, "032x")
+        event_dict["span_id"] = format(span_context.span_id, "016x")
+    return event_dict
 
 
 def configure_logging(level: str = "INFO") -> None:
@@ -32,7 +41,7 @@ def configure_logging(level: str = "INFO") -> None:
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
-            # Phase 9: insert an OpenTelemetry trace/span-id processor here.
+            _add_otel_context,
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level_no),
